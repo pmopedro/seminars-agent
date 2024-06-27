@@ -6,6 +6,9 @@ __pycache__/
 # C extensions
 *.so
 
+# panel exemples
+panel-chat-examples/
+
 # Distribution / packaging
 .Python
 build/
