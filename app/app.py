@@ -1,16 +1,13 @@
 """
-Demonstrates how to use the `ChatInterface` and `PanelCallbackHandler` to create a
-chatbot to talk to your Pandas DataFrame. This is heavily inspired by the
+Demonstrates how to use the `ChatInterface` and `PanelCallbackHandler` to create a chatbot to talk to your Pandas DataFrame. This is heavily inspired by the
 [LangChain `chat_pandas_df` Reference Example](https://github.com/langchain-ai/streamlit-agent/blob/main/streamlit_agent/chat_pandas_df.py).
 """
 from __future__ import annotations
 from agent import llm_model
 import datetime
 import os
-
 from pathlib import Path
 from textwrap import dedent
-
 import pandas as pd
 import panel as pn
 import param
@@ -41,38 +38,37 @@ from langchain.vectorstores import DocArrayInMemorySearch
 from IPython.display import display, Markdown
 from agent import create_agent
 
+# Initialize panel extension
 pn.extension("perspective")
 
-
 class AgentConfig(param.Parameterized):
-    """Configuration used for the Pandas Agent"""
-
+    """Configuration class for the Pandas Agent"""
     user = param.String("Professor Agent")
     avatar = param.String("🧑‍🏫")
-
     show_chain_of_thought = param.Boolean(default=False)
 
     def _get_agent_message(self, message: str) -> pn.chat.ChatMessage:
+        """Creates a chat message with agent's user and avatar settings"""
         return pn.chat.ChatMessage(message, user=self.user, avatar=self.avatar)
 
-
 class AppState(param.Parameterized):
-
+    """Application state for managing LLM and agent instances"""
     llm = param.Parameter()
     agent = param.Parameter()
-
     config: AgentConfig = param.ClassSelector(class_=AgentConfig)
 
     def __init__(self, config: AgentConfig | None = None):
+        """Initialize application state with default or provided configuration"""
         if not config:
             config = AgentConfig()
         super().__init__(config=config)
         self.OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
-        print("OPENAI_API_KEY:", self.OPENAI_API_KEY)  # Debug statement
+        print("OPENAI_API_KEY:", self.OPENAI_API_KEY)
         self._reset_llm()
         self._reset_agent()
 
     def _reset_llm(self):
+        """Reset the language model with OpenAI API key and configurations"""
         if self.OPENAI_API_KEY:
             try:
                 self.llm = ChatOpenAI(
@@ -81,16 +77,17 @@ class AppState(param.Parameterized):
                     api_key=self.OPENAI_API_KEY,
                     streaming=True,
                 )
-                print("LLM successfully instantiated")  # Debug statement
+                print("LLM successfully instantiated")
             except Exception as e:
-                print(f"Error instantiating LLM: {e}")  # Debug statement
+                print(f"Error instantiating LLM: {e}")
                 self.llm = None
         else:
-            print("OPENAI_API_KEY is not set")  # Debug statement
+            print("OPENAI_API_KEY is not set")
             self.llm = None
 
     @param.depends("llm", on_init=True, watch=True)
     def _reset_agent(self):
+        """Reset the agent based on LLM availability"""
         with param.edit_constant(self):
             if not self.error_message:
                 self.agent = create_agent()
@@ -99,22 +96,25 @@ class AppState(param.Parameterized):
 
     @property
     def error_message(self):
+        """Returns an error message if LLM is not available"""
         if self.llm is None:
             return dedent(
                 """\
-                LLM não detectado, favor entrar em contato com o suporte"""
+                LLM not detected, please contact support."""
             )
         return ""
 
     @property
     def welcome_message(self):
+        """Returns a welcome message including any error messages"""
         return dedent(
             f"""
-                    Hey my name is Chris. I'm a professor agent and I'm here to solve your questions about seminars.
+            Hey, my name is Chris. I'm a professor agent and I'm here to solve your questions about seminars.
             {self.error_message}"""
         ).strip()
 
     async def callback(self, contents, user, instance):
+        """Handles chat interface callbacks with user inputs and generates responses"""
         print("Content: ", contents)
         print("User: ", user)
         print("Instance: ", instance)
@@ -123,7 +123,7 @@ class AppState(param.Parameterized):
             instance.active = 1
             message = self.config._get_agent_message(
                 dedent(
-                    """Hey my name is Chris. I'm a professor agent and I'm here to solve your questions about seminars."""
+                    """Hey, my name is Chris. I'm a professor agent and I'm here to solve your questions about seminars."""
                 )
             )
             return message
@@ -146,9 +146,10 @@ class AppState(param.Parameterized):
         message = self.config._get_agent_message(response['output'])
         return message
 
-
+# Initialize application state
 state = AppState()
 
+# Set up chat interface
 chat_interface = pn.chat.ChatInterface(
     widgets=[
         pn.widgets.TextInput(name="Message", placeholder="Send a message"),
@@ -168,9 +169,9 @@ chat_interface.send(
     respond=False,
 )
 
-
+# Set up layout for the chat interface
 layout = pn.template.MaterialTemplate(
-    title="Agente de Autopeças Inteligente",
+    title="Intelligent Auto Parts Agent",
     main=[chat_interface],
     sidebar=[
         "#### Agent Settings",
@@ -178,5 +179,5 @@ layout = pn.template.MaterialTemplate(
     ],
 )
 
-
+# Make the layout servable
 layout.servable()

@@ -1,3 +1,4 @@
+# Import necessary libraries and modules
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 import pandas as pd
 import panel as pn
@@ -33,97 +34,84 @@ import datetime
 from langchain.memory import ConversationBufferWindowMemory
 from langchain_community.document_loaders import TextLoader
 
-
+# Initialize OpenAI embeddings
 embeddings = OpenAIEmbeddings()
 
-# account for deprecation of LLM model
-# Get the current date
+# Set the model version based on the current date
 current_date = datetime.datetime.now().date()
-
-# Define the date after which the model should be set to "gpt-3.5-turbo"
 target_date = datetime.date(2024, 6, 12)
-
-# Set the model variable based on the current date
 if current_date > target_date:
     llm_model = "gpt-3.5-turbo"
 else:
     llm_model = "gpt-3.5-turbo-0301"
 
+# Load raw documents from a text file
 raw_documents = TextLoader("../data/data.txt").load()
+
+# Split documents into chunks
 text_splitter = CharacterTextSplitter(chunk_size=3000, chunk_overlap=0)
 documents = text_splitter.split_documents(raw_documents)
-
 docs = text_splitter.split_documents(documents)
-text_splitter = RecursiveCharacterTextSplitter(
-    chunk_size=1000, chunk_overlap=200, add_start_index=True
-)
+
+# Further split documents with additional configurations
+text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200, add_start_index=True)
 all_splits = text_splitter.split_documents(docs)
 
-
+# Initialize the language model with specified parameters
 llm = ChatOpenAI(temperature=0.0, model=llm_model, max_tokens=2048)
-db = DocArrayInMemorySearch.from_documents(
-    all_splits,
-    embeddings
-)
+
+# Create an in-memory search database from documents and embeddings
+db = DocArrayInMemorySearch.from_documents(all_splits, embeddings)
 retriever = db.as_retriever()
-qa_stuff = RetrievalQA.from_chain_type(
-    llm=llm,
-    chain_type="stuff",
-    retriever=retriever,
-    verbose=True
-)
 
+# Create a RetrievalQA chain for question answering
+qa_stuff = RetrievalQA.from_chain_type(llm=llm, chain_type="stuff", retriever=retriever, verbose=True)
 
+# Define a custom tool to find seminar quotes
 @tool
 def find_seminar_quote(text: str) -> str:
-    """ Receives a question from the user about a seminar and returns a description of it from the transcript.
     """
-
+    Receives a question from the user about a seminar and returns a description of it from the transcript.
+    """
     query = f"""Please gather more information about '''{text}''' and rephrase the output, and always send me a string"""
     response = qa_stuff.run(query)
     print("find_seminar_quote", response, flush=True)
-
     return response
 
-
+# Function to create an agent
 def create_agent():
-    prefix = """Your name is Christian. You are a specialist agent in teaching Technology. You should have a simple and friendly conversation with a human, 
-    answering their questions as best as possible. You have access to the following tools: """
-    # FORMAT_INSTRUCTIONS = """To use a tool, follow this format:
-    #     '''
-    #     Thought: Do I really need to use this tool?
-    #     Action: The action to take, should be one of [{tool_names}]
-    #     Action Input: the input for the desired action
-    #     Observation: The result of the action
-    #     '''
-    #     """
+    prefix = """Your name is Christian. You are a specialist agent in teaching Technology. You should have a simple and friendly conversation with a human, answering their questions as best as possible. You have access to the following tools: """
     suffix = """
-    hystory: {chat_history}
+    history: {chat_history}
     Question: {input}
     {agent_scratchpad}"""
     tools = [find_seminar_quote]
 
+    # Create a prompt for the ZeroShotAgent
     prompt = ZeroShotAgent.create_prompt(
         tools,
         prefix=prefix,
         suffix=suffix,
-        # format_instructions=FORMAT_INSTRUCTIONS,
-        input_variables=[
-            "input", "chat_history", "agent_scratchpad"],
+        input_variables=["input", "chat_history", "agent_scratchpad"],
     )
+
+    # Initialize memory for conversation history
     memory = ConversationBufferWindowMemory(k=3, memory_key="chat_history")
-    # memory = ConversationBufferMemory(memory_key="chat_history")
+
+    # Create a language model chain with the prompt
     llm_chain = LLMChain(llm=llm, prompt=prompt)
-    agent = ZeroShotAgent(
-        llm_chain=llm_chain, tools=tools, verbose=True, max_iterations=3,)
-    agent = AgentExecutor.from_agent_and_tools(
+
+    # Initialize the agent with the LLM chain and tools
+    agent = ZeroShotAgent(llm_chain=llm_chain, tools=tools, verbose=True, max_iterations=3)
+
+    # Create an agent executor with error handling
+    agent_executor = AgentExecutor.from_agent_and_tools(
         agent=agent, tools=tools, verbose=True, memory=memory, handle_parsing_errors="Check if your output is helpful for the question asked."
     )
-    print('criei o agente corretamente')
-    return agent
+    print('Agent created successfully')
+    return agent_executor
 
-
+# Example query (commented out for now)
 # text = "hologram data size how to transport"
 # query = f"""Please gather more information about '''{text}''' and summarize the output"""
-
 # print(qa_stuff.run(query))
