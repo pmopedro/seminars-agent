@@ -2,3 +2,4 @@ numpy
 pandas
 docarray
 langchain-openai
+langchain_experimental

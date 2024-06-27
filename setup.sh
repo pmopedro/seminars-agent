@@ -29,4 +29,4 @@ if [ -f requirements.txt ]; then
     pip install -r requirements.txt || error_exit "Failed to install dependencies from requirements.txt"
 fi
 
-echo "Setup complete. Don't forget to set your OPENAI_API_KEY environment variable, it is needed. Also activate your env"
+echo "Setup complete. Don't forget to set your OPENAI_API_KEY environment variable and export, it is needed. Also activate your env"
